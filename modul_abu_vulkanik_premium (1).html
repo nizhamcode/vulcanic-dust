@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Modul Interaktif: Bahaya Mematikan Abu Vulkanik</title>
+    
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Tone.js for Sound Effects -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <!-- Font Awesome for Icons -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <style>
+        /* Base Reset & Preventing Global Scroll with Dynamic Viewport */
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100vw;
+            height: 100dvh; /* dvh fixes mobile address bar jank */
+            overflow: hidden; 
+            font-family: 'Inter', sans-serif;
+            background-color: #0f172a; 
+            color: #f8fafc;
+            /* Prevent pull-to-refresh on mobile */
+            overscroll-behavior-y: none;
+        }
+
+        /* Hide scrollbar for clean aesthetics */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        /* Visual cue for scrollable areas on mobile */
+        .scroll-fade {
+            -webkit-mask-image: linear-gradient(to bottom, black 85%, transparent 100%);
+            mask-image: linear-gradient(to bottom, black 85%, transparent 100%);
+        }
+
+        /* Glassmorphism Styles */
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.75);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+        }
+
+        .glass-card {
+            background: rgba(30, 41, 59, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            transition: all 0.3s ease;
+        }
+
+        @media (hover: hover) {
+            .glass-card:hover {
+                background: rgba(51, 65, 85, 0.8);
+                transform: translateY(-4px);
+                border-color: rgba(249, 115, 22, 0.5);
+            }
+        }
+
+        /* Slide Animation Logic */
+        .slide-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            perspective: 1000px;
+        }
+
+        .slide {
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateX(30px) scale(0.98);
+            transition: all 0.5s cubic-bezier(0.25, 1, 0.5, 1);
+        }
+
+        .slide.active {
+            opacity: 1;
+            visibility: visible;
+            transform: translateX(0) scale(1);
+            z-index: 10;
+        }
+
+        /* Particle Animation */
+        @keyframes float-up {
+            0% { transform: translateY(110dvh) scale(0.5); opacity: 0; }
+            20% { opacity: 0.6; }
+            80% { opacity: 0.6; }
+            100% { transform: translateY(-10dvh) scale(1.5); opacity: 0; }
+        }
+        .particle { animation: float-up linear infinite; }
+
+        /* Interactive Buttons */
+        .btn-interactive { transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
+        .btn-interactive:active:not(:disabled) { transform: scale(0.95); }
+        
+        /* Quiz Options */
+        .quiz-option { transition: all 0.2s; cursor: pointer; }
+        @media (hover: hover) {
+            .quiz-option:hover:not(.answered) { background-color: rgba(51, 65, 85, 0.9); border-color: #f97316; }
+        }
+        .quiz-option:active:not(.answered) { transform: scale(0.98); }
+        .quiz-option.correct { background-color: rgba(16, 185, 129, 0.2); border-color: #10b981; color: #34d399; }
+        .quiz-option.wrong { background-color: rgba(225, 29, 72, 0.2); border-color: #e11d48; color: #fb7185; }
+    </style>
+</head>
+<body class="flex flex-col">
+
+    <div id="particle-bg" class="fixed inset-0 pointer-events-none z-0">
+        <div class="absolute inset-0 bg-gradient-to-br from-slate-900 via-slate-900 to-orange-950/40"></div>
+    </div>
+
+    <header id="main-header" class="relative z-20 h-14 md:h-16 flex items-center justify-between px-4 md:px-12 glass-panel border-b-0 opacity-0 pointer-events-none transition-opacity duration-500">
+        <div class="flex items-center gap-2 md:gap-3">
+            <i class="fa-solid fa-volcano text-orange-500 text-xl md:text-2xl"></i>
+            <h1 class="font-bold text-sm md:text-lg tracking-wide">Mitigasi Vulkanik</h1>
+        </div>
+        
+        <div class="flex items-center gap-1.5 md:gap-2" id="progress-dots"></div>
+
+        <div class="hidden sm:block text-xs md:text-sm font-semibold text-slate-400 bg-slate-800 px-3 py-1 rounded-full">
+            Modul Interaktif
+        </div>
+    </header>
+
+    <main class="relative z-10 flex-1 w-full p-3 sm:p-4 md:p-8 flex items-center justify-center overflow-hidden">
+        <div class="slide-container max-w-6xl w-full">
+
+            <!-- Slide 0: Start Screen -->
+            <section class="slide active flex flex-col items-center justify-center text-center px-4" id="slide-0">
+                <div class="relative w-24 h-24 md:w-32 md:h-32 mb-6 animate-bounce">
+                    <div class="absolute inset-0 bg-orange-500 blur-3xl opacity-30 rounded-full"></div>
+                    <i class="fa-solid fa-mountain-sun text-7xl md:text-8xl text-orange-500 relative z-10 drop-shadow-2xl"></i>
+                </div>
+                <h1 class="text-4xl sm:text-5xl md:text-7xl font-extrabold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-orange-400 via-red-500 to-yellow-500 tracking-tight leading-tight">
+                    Bahaya Mematikan<br>Abu Vulkanik
+                </h1>
+                <p class="text-base md:text-xl text-slate-300 max-w-2xl mb-8 leading-relaxed font-light">
+                    Abu vulkanik bukanlah debu biasa. Pahami struktur mikroskopisnya, saksikan dampak nyatanya, dan pelajari cara bertahan hidup.
+                </p>
+                <button id="btn-start" class="btn-interactive group relative w-full sm:w-auto px-6 py-4 bg-gradient-to-r from-orange-600 to-red-600 rounded-2xl md:rounded-full font-bold text-lg text-white shadow-[0_0_30px_rgba(2ea,88,12,0.4)] overflow-hidden">
+                    <span class="relative z-10 flex items-center justify-center gap-3">
+                        <i class="fa-solid fa-power-off"></i> Mulai Modul Interaktif
+                    </span>
+                    <div class="absolute inset-0 bg-gradient-to-r from-red-600 to-orange-600 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                </button>
+                <p class="mt-4 text-xs text-slate-500"><i class="fa-solid fa-volume-high mr-1"></i> Aktifkan suara untuk pengalaman optimal</p>
+            </section>
+
+            <section class="slide glass-panel rounded-2xl md:rounded-[2rem] overflow-hidden flex flex-col md:flex-row h-full" id="slide-1">
+                <!-- Visual (Top on Mobile) -->
+                <div class="w-full shrink-0 h-40 sm:h-52 md:h-full md:w-1/2 bg-slate-900 border-b md:border-b-0 md:border-r border-white/10 flex items-center justify-center relative overflow-hidden order-1 md:order-2">
+                    <div class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/stardust.png')] opacity-30"></div>
+                    <div class="relative z-10 text-center flex flex-col items-center p-4">
+                        <i class="fa-solid fa-magnifying-glass text-5xl md:text-7xl text-slate-600 mb-3 md:mb-6 drop-shadow-lg"></i>
+                        <h3 class="text-xl md:text-2xl font-bold text-slate-400">Struktur Mikroskopis</h3>
+                        <p class="text-xs md:text-sm text-slate-500 mt-2 max-w-[200px] md:max-w-xs">Partikel tajam < 2 milimeter yang tidak larut dalam air.</p>
+                    </div>
+                </div>
+                <!-- Text (Scrollable Bottom on Mobile) -->
+                <div class="flex-1 overflow-y-auto no-scrollbar scroll-fade order-2 md:order-1">
+                    <div class="p-5 md:p-12 pb-16 md:pb-12 flex flex-col justify-center min-h-full">
+                        <div class="inline-flex items-center gap-2 text-orange-400 mb-3 bg-orange-500/10 w-max px-3 py-1 md:px-4 md:py-1.5 rounded-full border border-orange-500/20">
+                            <i class="fa-solid fa-microscope text-xs md:text-sm"></i>
+                            <span class="text-xs md:text-sm font-bold uppercase tracking-wider">Anatomi Material</span>
+                        </div>
+                        <h2 class="text-2xl md:text-5xl font-extrabold mb-4 leading-tight">Bukan Debu Biasa,<br>Melainkan Kaca Tajam</h2>
+                        <p class="text-slate-300 text-sm md:text-lg mb-4 leading-relaxed">
+                            Masyarakat sering menyamakan abu vulkanik dengan abu kayu yang lunak. <strong>Ini adalah kesalahan fatal.</strong> Abu terbentuk dari magma cair yang hancur di udara. Material utamanya adalah <strong>Kaca Silika (SiO2)</strong>.
+                        </p>
+                        <div class="grid grid-cols-1 gap-3 mt-2">
+                            <div class="bg-slate-800/50 p-4 rounded-xl border border-slate-700 flex items-start gap-3">
+                                <i class="fa-solid fa-burst text-xl text-red-400 mt-1"></i>
+                                <div>
+                                    <h4 class="font-bold text-white text-sm md:text-base">Abrasif & Bergerigi</h4>
+                                    <p class="text-xs md:text-sm text-slate-400">Di bawah mikroskop, abu ini memiliki ujung setajam silet yang mampu menggores baja dan kaca.</p>
+                                </div>
+                            </div>
+                            <div class="bg-slate-800/50 p-4 rounded-xl border border-slate-700 flex items-start gap-3">
+                                <i class="fa-solid fa-flask text-xl text-yellow-400 mt-1"></i>
+                                <div>
+                                    <h4 class="font-bold text-white text-sm md:text-base">Sangat Korosif (Asam)</h4>
+                                    <p class="text-xs md:text-sm text-slate-400">Terlapisi aerosol asam belerang. Memicu reaksi iritasi kimiawi pada kulit dan mata.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="slide glass-panel rounded-2xl md:rounded-[2rem] overflow-hidden flex flex-col md:flex-row h-full" id="slide-2">
+                <!-- Video Top -->
+                <div class="w-full shrink-0 p-3 md:p-8 md:w-1/2 flex flex-col justify-center bg-black/40 border-b md:border-b-0 md:border-r border-white/10 order-1 md:order-2">
+                    <div class="w-full aspect-video rounded-xl overflow-hidden shadow-2xl border border-white/20 bg-slate-800 relative">
+                        <iframe class="absolute inset-0 w-full h-full" src="https://www.youtube.com/embed/XE6WgGn4Fus?rel=0" title="Bahaya Kesehatan" frameborder="0" allowfullscreen></iframe>
+                    </div>
+                    <p class="text-center text-xs text-slate-500 mt-2 font-mono hidden md:block">Sumber: KOMPASTV</p>
+                </div>
+                <!-- Text Bottom -->
+                <div class="flex-1 overflow-y-auto no-scrollbar scroll-fade order-2 md:order-1">
+                    <div class="p-5 md:p-12 pb-16 md:pb-12 flex flex-col justify-center min-h-full">
+                        <div class="inline-flex items-center gap-2 text-red-400 mb-3 bg-red-500/10 w-max px-3 py-1 md:px-4 md:py-1.5 rounded-full border border-red-500/20">
+                            <i class="fa-solid fa-lungs-virus text-xs md:text-sm"></i>
+                            <span class="text-xs md:text-sm font-bold uppercase tracking-wider">Sektor Kesehatan</span>
+                        </div>
+                        <h2 class="text-2xl md:text-4xl font-extrabold mb-4 leading-tight">Mengiris Paru-Paru dari Dalam</h2>
+                        <p class="text-slate-300 text-sm md:text-base mb-4 leading-relaxed">
+                            Ujung tajam silika (kurang dari 2 mikron) meloloskan diri dari bulu hidung dan menembus ke dalam kantung udara (alveolus).
+                        </p>
+                        <div class="bg-red-950/30 border-l-4 border-red-500 p-3 md:p-4 rounded-r-lg mb-4">
+                            <p class="text-xs md:text-sm text-slate-200 leading-relaxed">
+                                <strong>Sindrom Silikosis:</strong> Tubuh merespons luka pecahan silika dengan peradangan hebat. Memicu ISPA berat, asma akut, hingga batuk darah permanen.
+                            </p>
+                        </div>
+                        <p class="text-slate-300 text-sm md:text-base leading-relaxed">
+                            Di area mata, abu menyebabkan <strong>Pitting Kornea</strong> (kornea tergores), menimbulkan perih ekstrem dan risiko kebutaan parsial jika dikucek.
+                        </p>
+                    </div>
+                </div>
+            </section>
+
+            <section class="slide glass-panel rounded-2xl md:rounded-[2rem] overflow-hidden flex flex-col md:flex-row h-full" id="slide-3">
+                <div class="w-full shrink-0 p-3 md:p-8 md:w-1/2 flex flex-col justify-center bg-black/40 border-b md:border-b-0 md:border-r border-white/10 order-1 md:order-2">
+                    <div class="w-full aspect-video rounded-xl overflow-hidden shadow-2xl border border-white/20 bg-slate-800 relative">
+                        <iframe class="absolute inset-0 w-full h-full" src="https://www.youtube.com/embed/YYwN1R8hVsI?start=30&rel=0" title="Pesawat dan Abu Vulkanik" frameborder="0" allowfullscreen></iframe>
+                    </div>
+                    <p class="text-center text-xs text-slate-500 mt-2 font-mono hidden md:block">Fakta: Tragedi British Airways 009 (1982)</p>
+                </div>
+                <div class="flex-1 overflow-y-auto no-scrollbar scroll-fade order-2 md:order-1">
+                    <div class="p-5 md:p-12 pb-16 md:pb-12 flex flex-col justify-center min-h-full">
+                        <div class="inline-flex items-center gap-2 text-blue-400 mb-3 bg-blue-500/10 w-max px-3 py-1 md:px-4 md:py-1.5 rounded-full border border-blue-500/20">
+                            <i class="fa-solid fa-plane-circle-exclamation text-xs md:text-sm"></i>
+                            <span class="text-xs md:text-sm font-bold uppercase tracking-wider">Infrastruktur Penerbangan</span>
+                        </div>
+                        <h2 class="text-2xl md:text-4xl font-extrabold mb-4 leading-tight">Matinya Jantung Baja di Udara</h2>
+                        <p class="text-slate-300 text-sm md:text-base mb-4 leading-relaxed">
+                            Seluruh bandara dihentikan operasinya karena fenomena mematikan bernama <strong>Engine Flameout</strong>.
+                        </p>
+                        <ul class="space-y-2 md:space-y-3 mb-2">
+                            <li class="flex items-start gap-3 bg-slate-800/40 p-3 rounded-lg border border-slate-700">
+                                <i class="fa-solid fa-temperature-arrow-up text-orange-500 mt-0.5"></i>
+                                <span class="text-xs md:text-sm text-slate-300">Mesin jet beroperasi pada <strong>1.400°C</strong>. Titik leleh silika adalah <strong>1.100°C</strong>.</span>
+                            </li>
+                            <li class="flex items-start gap-3 bg-slate-800/40 p-3 rounded-lg border border-slate-700">
+                                <i class="fa-solid fa-droplet text-blue-500 mt-0.5"></i>
+                                <span class="text-xs md:text-sm text-slate-300">Abu yang terhisap mencair jadi lahar, lalu <strong>membeku secara instan</strong> di bagian belakang mesin.</span>
+                            </li>
+                            <li class="flex items-start gap-3 bg-slate-800/40 p-3 rounded-lg border border-slate-700">
+                                <i class="fa-solid fa-power-off text-red-500 mt-0.5"></i>
+                                <span class="text-xs md:text-sm text-slate-300">Bilah turbin tersumbat, mematikan total seluruh mesin pesawat saat terbang.</span>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+            <section class="slide glass-panel rounded-2xl md:rounded-[2rem] overflow-hidden flex flex-col md:flex-row h-full" id="slide-4">
+                <div class="w-full shrink-0 p-3 md:p-8 md:w-1/2 flex flex-col justify-center bg-black/40 border-b md:border-b-0 md:border-r border-white/10 order-1 md:order-2">
+                    <div class="w-full aspect-video rounded-xl overflow-hidden shadow-2xl border border-white/20 bg-slate-800 relative">
+                        <iframe class="absolute inset-0 w-full h-full" src="https://www.youtube.com/embed/ZcvvBv2Y2_0?rel=0" title="Atap Rumah Hancur" frameborder="0" allowfullscreen></iframe>
+                    </div>
+                </div>
+                <div class="flex-1 overflow-y-auto no-scrollbar scroll-fade order-2 md:order-1">
+                    <div class="p-5 md:p-12 pb-16 md:pb-12 flex flex-col justify-center min-h-full">
+                        <div class="inline-flex items-center gap-2 text-amber-400 mb-3 bg-amber-500/10 w-max px-3 py-1 md:px-4 md:py-1.5 rounded-full border border-amber-500/20">
+                            <i class="fa-solid fa-house-chimney-crack text-xs md:text-sm"></i>
+                            <span class="text-xs md:text-sm font-bold uppercase tracking-wider">Infrastruktur Bangunan</span>
+                        </div>
+                        <h2 class="text-2xl md:text-4xl font-extrabold mb-4 leading-tight">Tonase Maut Penikam Atap</h2>
+                        <p class="text-slate-300 text-sm md:text-base mb-4 leading-relaxed">
+                            Kepadatan abu sangat ekstrem, bertindak layaknya semen yang dijatuhkan dari langit ke atap rumah warga.
+                        </p>
+                        <div class="flex flex-col gap-3 mb-4">
+                            <div class="flex gap-3 items-center bg-slate-800/60 p-3 rounded-xl border-l-4 border-slate-500">
+                                <div class="text-2xl md:text-3xl">🪨</div>
+                                <div>
+                                    <h4 class="font-bold text-white text-sm md:text-base">Kondisi Kering</h4>
+                                    <p class="text-xs text-slate-400">1 m³ berbobot <strong>500 - 1.000 Kg</strong>.</p>
+                                </div>
+                            </div>
+                            <div class="flex gap-3 items-center bg-blue-900/30 p-3 rounded-xl border-l-4 border-blue-500">
+                                <div class="text-2xl md:text-3xl">🌧️</div>
+                                <div>
+                                    <h4 class="font-bold text-white text-sm md:text-base">Kondisi Basah (Hujan)</h4>
+                                    <p class="text-xs text-slate-300">Menyerap air spt spons, beban tembus <strong>2.000 Kg/m³</strong>.</p>
+                                </div>
+                            </div>
+                        </div>
+                        <p class="text-slate-300 text-xs md:text-sm leading-relaxed bg-red-900/20 p-3 rounded-lg border border-red-500/20">
+                            Rangka atap baja ringan tidak dirancang untuk ini. Atap akan seketika runtuh menimpa penghuni.
+                        </p>
+                    </div>
+                </div>
+            </section>
+
+            <section class="slide glass-panel rounded-2xl md:rounded-[2rem] overflow-hidden flex flex-col h-full p-4 sm:p-6 md:p-10" id="slide-5">
+                <div class="text-center mb-4 md:mb-8 shrink-0">
+                    <div class="inline-flex items-center gap-2 text-emerald-400 mb-2 md:mb-3 bg-emerald-500/10 px-3 py-1 md:px-4 md:py-1.5 rounded-full border border-emerald-500/20">
+                        <i class="fa-solid fa-shield-halved text-xs md:text-sm"></i>
+                        <span class="text-xs md:text-sm font-bold uppercase tracking-wider">Tindakan Mitigasi</span>
+                    </div>
+                    <h2 class="text-2xl md:text-4xl font-extrabold">Protokol Darurat Cepat</h2>
+                </div>
+
+                <div class="flex-1 overflow-y-auto no-scrollbar scroll-fade">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-6 pb-12">
+                        
+                        <div class="glass-card p-4 md:p-6 rounded-2xl flex items-start gap-4">
+                            <div class="w-10 h-10 md:w-14 md:h-14 rounded-full bg-emerald-500/20 flex items-center justify-center border border-emerald-500/30 shrink-0">
+                                <i class="fa-solid fa-mask-ventilator text-lg md:text-2xl text-emerald-400"></i>
+                            </div>
+                            <div>
+                                <h3 class="text-sm md:text-lg font-bold mb-1 text-white">Gunakan Respirator N95</h3>
+                                <p class="text-xs md:text-sm text-slate-300">Masker kain/medis <strong>TIDAK</strong> efektif. Gunakan N95/KN95 untuk memblokir mikrosilika.</p>
+                            </div>
+                        </div>
+
+                        <div class="glass-card p-4 md:p-6 rounded-2xl flex items-start gap-4">
+                            <div class="w-10 h-10 md:w-14 md:h-14 rounded-full bg-emerald-500/20 flex items-center justify-center border border-emerald-500/30 shrink-0">
+                                <i class="fa-solid fa-glasses text-lg md:text-2xl text-emerald-400"></i>
+                            </div>
+                            <div>
+                                <h3 class="text-sm md:text-lg font-bold mb-1 text-white">Kacamata Goggle</h3>
+                                <p class="text-xs md:text-sm text-slate-300">Hindari lensa kontak/kacamata biasa. Gunakan goggle tertutup rapat agar abu tidak masuk dari celah samping.</p>
+                            </div>
+                        </div>
+
+                        <div class="glass-card p-4 md:p-6 rounded-2xl flex items-start gap-4">
+                            <div class="w-10 h-10 md:w-14 md:h-14 rounded-full bg-emerald-500/20 flex items-center justify-center border border-emerald-500/30 shrink-0">
+                                <i class="fa-solid fa-door-closed text-lg md:text-2xl text-emerald-400"></i>
+                            </div>
+                            <div>
+                                <h3 class="text-sm md:text-lg font-bold mb-1 text-white">Isolasi Ventilasi</h3>
+                                <p class="text-xs md:text-sm text-slate-300">Tutup jendela rapat. Gunakan lakban/handuk basah pada celah bawah pintu agar abu tak tersedot masuk.</p>
+                            </div>
+                        </div>
+
+                        <div class="glass-card p-4 md:p-6 rounded-2xl flex items-start gap-4">
+                            <div class="w-10 h-10 md:w-14 md:h-14 rounded-full bg-emerald-500/20 flex items-center justify-center border border-emerald-500/30 shrink-0">
+                                <i class="fa-solid fa-shower text-lg md:text-2xl text-emerald-400"></i>
+                            </div>
+                            <div>
+                                <h3 class="text-sm md:text-lg font-bold mb-1 text-white">Basahi Sebelum Disapu</h3>
+                                <p class="text-xs md:text-sm text-slate-300">Semprot percikan air ke abu sebelum disapu agar debu tidak terbang kembali (*resuspension*).</p>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </section>
+
+            <section class="slide glass-panel rounded-2xl md:rounded-[2rem] overflow-hidden flex flex-col h-full p-4 sm:p-6 md:p-12 relative" id="slide-6">
+                <!-- Quiz Area -->
+                <div id="quiz-area" class="w-full max-w-3xl mx-auto flex flex-col h-full justify-center">
+                    <div class="flex justify-between items-center mb-4 md:mb-8">
+                        <div class="inline-flex items-center gap-2 text-purple-400 bg-purple-500/10 px-3 py-1 md:px-4 md:py-1.5 rounded-full border border-purple-500/20">
+                            <i class="fa-solid fa-brain text-xs md:text-sm"></i>
+                            <span class="text-xs md:text-sm font-bold uppercase tracking-wider">Kuis Evaluasi</span>
+                        </div>
+                        <span id="quiz-progress-text" class="text-slate-400 font-mono font-bold tracking-widest text-sm md:text-lg">1/3</span>
+                    </div>
+
+                    <div class="bg-slate-800/60 p-4 md:p-8 rounded-2xl border border-slate-700 mb-4 md:mb-6 shadow-lg min-h-[100px] flex items-center">
+                        <h3 id="quiz-question" class="text-lg md:text-2xl font-bold text-white leading-snug md:leading-relaxed">
+                            Memuat pertanyaan...
+                        </h3>
+                    </div>
+
+                    <div id="quiz-options" class="flex flex-col gap-2 md:gap-3 overflow-y-auto no-scrollbar pb-2">
+                        <!-- Options injected by JS -->
+                    </div>
+                </div>
+
+                <!-- Result Area -->
+                <div id="result-area" class="w-full max-w-2xl mx-auto flex-col h-full justify-center items-center text-center hidden absolute inset-0 bg-slate-900/95 backdrop-blur-md rounded-2xl md:rounded-[2rem] z-20">
+                    <div class="p-6 md:p-8 w-full">
+                        <div id="result-icon" class="text-6xl md:text-7xl mb-4 md:mb-6 drop-shadow-2xl">🏆</div>
+                        <h2 id="result-title" class="text-3xl md:text-4xl font-extrabold mb-4 text-white">Skor Anda!</h2>
+                        <div class="inline-block bg-slate-800 border border-slate-600 px-6 py-3 md:px-8 md:py-4 rounded-2xl mb-6 md:mb-8">
+                            <p class="text-slate-400 text-xs md:text-sm uppercase tracking-widest mb-1">Total Benar</p>
+                            <p id="result-score" class="text-4xl md:text-5xl font-bold text-orange-500">0 / 3</p>
+                        </div>
+                        <br>
+                        <button id="btn-retry" class="btn-interactive w-full md:w-auto px-8 py-4 bg-slate-700 hover:bg-slate-600 border border-slate-500 text-white rounded-2xl md:rounded-full font-bold shadow-lg text-lg">
+                            <i class="fa-solid fa-rotate-right mr-2"></i> Ulangi Kuis
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+        </div>
+    </main>
+
+    <footer id="main-footer" class="relative z-20 h-20 md:h-24 flex items-center justify-between px-3 md:px-12 glass-panel border-t-0 opacity-0 pointer-events-none transition-opacity duration-500 gap-2">
+        <button id="btn-prev" class="btn-interactive flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-3.5 md:py-3 rounded-2xl md:rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold border border-slate-600 disabled:opacity-30 disabled:pointer-events-none">
+            <i class="fa-solid fa-arrow-left"></i> <span class="text-sm md:text-base">Mundur</span>
+        </button>
+        
+        <div class="text-slate-400 text-xs text-center hidden sm:block">
+            <span class="hidden md:inline">Gunakan <kbd class="px-1.5 py-0.5 bg-slate-800 rounded border border-slate-600">🡠</kbd> <kbd class="px-1.5 py-0.5 bg-slate-800 rounded border border-slate-600">🡢</kbd> atau</span> 
+            <i class="fa-solid fa-hand-pointer ml-1"></i> Swipe layar untuk navigasi
+        </div>
+
+        <button id="btn-next" class="btn-interactive flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-3.5 md:py-3 rounded-2xl md:rounded-full bg-orange-600 hover:bg-orange-500 text-white font-bold shadow-[0_0_15px_rgba(2ea,88,12,0.5)]">
+            <span id="next-text" class="text-sm md:text-base">Lanjut</span> <i class="fa-solid fa-arrow-right" id="next-icon"></i>
+        </button>
+    </footer>
+
+    <script>
+        // Particle Background Generator
+        const bgContainer = document.getElementById('particle-bg');
+        for(let i = 0; i < 25; i++) {
+            const p = document.createElement('div');
+            const size = Math.random() * 4 + 2; 
+            const left = Math.random() * 100;
+            const duration = Math.random() * 15 + 10; 
+            const delay = Math.random() * 5; 
+            p.className = 'absolute rounded-full bg-orange-500 mix-blend-screen particle shadow-[0_0_5px_rgba(249,115,22,0.8)]';
+            p.style.width = `${size}px`; p.style.height = `${size}px`;
+            p.style.left = `${left}%`; p.style.animationDuration = `${duration}s`; p.style.animationDelay = `${delay}s`;
+            bgContainer.appendChild(p);
+        }
+
+        // Tone.js Audio Setup
+        let isAudioInit = false;
+        let uiSynth, swooshSynth, polySynth;
+
+        async function initAudio() {
+            if (isAudioInit) return;
+            await Tone.start();
+            uiSynth = new Tone.Synth({ oscillator: { type: "sine" }, envelope: { attack: 0.005, decay: 0.1, sustain: 0, release: 0.01 } }).toDestination();
+            uiSynth.volume.value = -12;
+            swooshSynth = new Tone.NoiseSynth({ noise: { type: "brown" }, envelope: { attack: 0.01, decay: 0.2, sustain: 0 } }).toDestination();
+            swooshSynth.volume.value = -25;
+            polySynth = new Tone.PolySynth(Tone.Synth).toDestination();
+            polySynth.volume.value = -10;
+            isAudioInit = true;
+        }
+
+        function playClick() { if(isAudioInit) uiSynth.triggerAttackRelease("E5", "32n"); }
+        function playSwipe() { if(isAudioInit) swooshSynth.triggerAttackRelease("16n"); }
+        function playCorrect() {
+            if(!isAudioInit) return;
+            const now = Tone.now();
+            polySynth.triggerAttackRelease("C5", "8n", now);
+            polySynth.triggerAttackRelease("E5", "8n", now + 0.1);
+            polySynth.triggerAttackRelease("G5", "4n", now + 0.2);
+        }
+        function playWrong() {
+            if(!isAudioInit) return;
+            const now = Tone.now();
+            polySynth.triggerAttackRelease("Eb4", "8n", now);
+            polySynth.triggerAttackRelease("C4", "4n", now + 0.15);
+        }
+
+        // Navigation Logic
+        let currentIndex = 0;
+        const slides = document.querySelectorAll('.slide');
+        const totalSlides = slides.length;
+        const header = document.getElementById('main-header');
+        const footer = document.getElementById('main-footer');
+        const btnPrev = document.getElementById('btn-prev');
+        const btnNext = document.getElementById('btn-next');
+        const dotsContainer = document.getElementById('progress-dots');
+
+        for(let i = 1; i < totalSlides; i++) {
+            const dot = document.createElement('div');
+            dot.className = 'progress-dot h-1.5 md:h-2 w-1.5 md:w-2 rounded-full bg-white/20 transition-all duration-500';
+            dotsContainer.appendChild(dot);
+        }
+        const dots = document.querySelectorAll('.progress-dot');
+
+        function updateView(direction = 1) {
+            slides.forEach((s) => {
+                if(s.classList.contains('active')) {
+                    s.classList.remove('active');
+                    s.style.transform = direction > 0 ? 'translateX(-30px) scale(0.98)' : 'translateX(30px) scale(0.98)';
+                }
+            });
+
+            const current = slides[currentIndex];
+            current.style.transform = direction > 0 ? 'translateX(30px) scale(0.98)' : 'translateX(-30px) scale(0.98)';
+            void current.offsetWidth; 
+            current.classList.add('active');
+            current.style.transform = ''; 
+
+            // Stop youtube videos in hidden slides
+            document.querySelectorAll('iframe').forEach(iframe => {
+                const src = iframe.src; iframe.src = src; 
+            });
+
+            if (currentIndex === 0) {
+                header.classList.add('opacity-0', 'pointer-events-none');
+                footer.classList.add('opacity-0', 'pointer-events-none');
+            } else {
+                header.classList.remove('opacity-0', 'pointer-events-none');
+                footer.classList.remove('opacity-0', 'pointer-events-none');
+                
+                dots.forEach((d, i) => {
+                    if (i === currentIndex - 1) {
+                        d.classList.replace('w-1.5', 'w-6'); d.classList.replace('md:w-2', 'md:w-8');
+                        d.classList.replace('bg-white/20', 'bg-orange-500');
+                    } else {
+                        d.classList.replace('w-6', 'w-1.5'); d.classList.replace('md:w-8', 'md:w-2');
+                        d.classList.replace('bg-orange-500', 'bg-white/20');
+                    }
+                });
+            }
+
+            btnPrev.disabled = currentIndex <= 1; 
+            
+            if (currentIndex === totalSlides - 1) {
+                btnNext.disabled = true;
+                btnNext.classList.add('opacity-0', 'pointer-events-none');
+            } else {
+                btnNext.disabled = false;
+                btnNext.classList.remove('opacity-0', 'pointer-events-none');
+            }
+        }
+
+        // Event Listeners
+        document.getElementById('btn-start').addEventListener('click', async () => {
+            await initAudio(); playClick(); currentIndex = 1; updateView(1);
+        });
+
+        btnNext.addEventListener('click', () => {
+            if (currentIndex < totalSlides - 1) { playSwipe(); currentIndex++; updateView(1); }
+        });
+        btnPrev.addEventListener('click', () => {
+            if (currentIndex > 1) { playSwipe(); currentIndex--; updateView(-1); }
+        });
+        document.addEventListener('keydown', (e) => {
+            if(currentIndex > 0) {
+                if (e.key === 'ArrowRight' && currentIndex < totalSlides - 1) btnNext.click();
+                if (e.key === 'ArrowLeft' && currentIndex > 1) btnPrev.click();
+            }
+        });
+
+        let touchStartX = 0; let touchEndX = 0;
+        const slideContainer = document.querySelector('.slide-container');
+        
+        slideContainer.addEventListener('touchstart', e => {
+            touchStartX = e.changedTouches[0].screenX;
+        }, {passive: true});
+
+        slideContainer.addEventListener('touchend', e => {
+            touchEndX = e.changedTouches[0].screenX;
+            handleSwipe();
+        }, {passive: true});
+
+        function handleSwipe() {
+            // Only swipe if the movement is larger than 50px
+            if (touchEndX < touchStartX - 50) { if (currentIndex > 0 && currentIndex < totalSlides - 1) btnNext.click(); }
+            if (touchEndX > touchStartX + 50) { if (currentIndex > 1) btnPrev.click(); }
+        }
+
+        // Quiz Logic
+        const quizData = [
+            {
+                question: "Mengapa masker medis kain (bedah) TIDAK efektif melindungi paru-paru dari abu vulkanik?",
+                options: [
+                    "Kaca silika mikroskopis (<2 mikron) menembus pori kain.",
+                    "Abu vulkanik sangat panas dan membakar kain.",
+                    "Sifat asam abu akan melarutkan kain masker."
+                ], correct: 0
+            },
+            {
+                question: "Apa penyebab utama mesin jet pesawat mengalami mati total (Flameout) akibat abu?",
+                options: [
+                    "Abu menutup asupan oksigen secara instan di luar.",
+                    "Silika mencair di suhu mesin (1.400°C) lalu membeku menyumbat turbin.",
+                    "Gas sulfur memicu percikan api di bahan bakar avtur."
+                ], correct: 1
+            },
+            {
+                question: "Mengapa dilarang langsung menyapu abu vulkanik dalam kondisi kering?",
+                options: [
+                    "Sapu akan langsung tumpul dan patah.",
+                    "Abu akan beterbangan kembali (resuspensi) dan terhirup.",
+                    "Gesekan sapu kering dapat memicu listrik statis/api."
+                ], correct: 1
+            }
+        ];
+
+        let currentQuizIndex = 0; let score = 0;
+        const elQuizQuestion = document.getElementById('quiz-question');
+        const elQuizOptions = document.getElementById('quiz-options');
+        const elResultArea = document.getElementById('result-area');
+        
+        function loadQuiz() {
+            const q = quizData[currentQuizIndex];
+            elQuizQuestion.innerText = q.question;
+            document.getElementById('quiz-progress-text').innerText = `${currentQuizIndex + 1}/${quizData.length}`;
+            elQuizOptions.innerHTML = '';
+
+            q.options.forEach((opt, idx) => {
+                const div = document.createElement('div');
+                div.className = 'quiz-option bg-slate-800 border border-slate-600 p-3 md:p-4 rounded-xl text-slate-200 text-sm md:text-base font-medium flex items-center gap-3 md:gap-4 select-none';
+                const letter = String.fromCharCode(65 + idx);
+                div.innerHTML = `<span class="bg-slate-900 w-8 h-8 md:w-10 md:h-10 rounded-lg flex items-center justify-center shrink-0 font-bold text-slate-400 text-xs md:text-sm">${letter}</span> <span class="leading-snug">${opt}</span>`;
+                div.addEventListener('click', () => handleAnswer(idx, div));
+                elQuizOptions.appendChild(div);
+            });
+        }
+
+        function handleAnswer(selectedIndex, clickedEl) {
+            playClick();
+            const correctIndex = quizData[currentQuizIndex].correct;
+            const allOptions = elQuizOptions.querySelectorAll('.quiz-option');
+            
+            allOptions.forEach(opt => opt.classList.add('pointer-events-none', 'answered'));
+
+            if (selectedIndex === correctIndex) {
+                clickedEl.classList.add('correct');
+                clickedEl.querySelector('span:first-child').classList.replace('bg-slate-900', 'bg-emerald-500');
+                clickedEl.querySelector('span:first-child').classList.replace('text-slate-400', 'text-white');
+                score++; playCorrect();
+            } else {
+                clickedEl.classList.add('wrong');
+                clickedEl.querySelector('span:first-child').classList.replace('bg-slate-900', 'bg-rose-500');
+                clickedEl.querySelector('span:first-child').classList.replace('text-slate-400', 'text-white');
+                allOptions[correctIndex].classList.add('correct');
+                playWrong();
+            }
+
+            setTimeout(() => {
+                currentQuizIndex++;
+                if (currentQuizIndex < quizData.length) loadQuiz();
+                else showResult();
+            }, 2000);
+        }
+
+        function showResult() {
+            elResultArea.style.display = 'flex'; 
+            elResultArea.classList.remove('hidden');
+            document.getElementById('result-score').innerText = `${score} / ${quizData.length}`;
+            if (score === quizData.length) {
+                document.getElementById('result-icon').innerText = '🛡️';
+                document.getElementById('result-title').innerText = 'Pakar Mitigasi!';
+                if(isAudioInit) polySynth.triggerAttackRelease(["C4", "E4", "G4", "C5"], "2n");
+            } else {
+                document.getElementById('result-icon').innerText = '⚠️';
+                document.getElementById('result-title').innerText = 'Perlu Waspada!';
+            }
+        }
+
+        document.getElementById('btn-retry').addEventListener('click', () => {
+            playClick(); currentQuizIndex = 0; score = 0;
+            elResultArea.classList.add('hidden'); elResultArea.style.display = '';
+            loadQuiz();
+        });
+
+        loadQuiz();
+    </script>
+</body>
+</html>
